@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from core.logger import logger
 import ccxt
 import schedule
 import asyncio
@@ -80,12 +81,22 @@ class Ccxt_bot():
         return data
 
     def fetch_datas(self, limit: int=200) -> pd.DataFrame:
-        kbars = self._exchange.fetch_ohlcv(
-            symbol=self._symbol,
-            timeframe=self._timeframe,
-            limit=300
-        )
-        
+        while True:
+            try:
+                kbars = self._exchange.fetch_ohlcv(
+                    symbol=self._symbol,
+                    timeframe=self._timeframe,
+                    limit=300
+                )
+                break
+            except ccxt.base.errors.RequestTimeout as e:
+                logger.warning(f"retry {type(e).__name__}, {e.args}, {e}")
+                pass
+            
+            except Exception as e:
+                logger.error(f"{type(e).__name__}, {e.args}, {e}")
+                raise e
+            
         df = pd.DataFrame(kbars[:], columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         df['dt'] = pd.to_datetime(df['timestamp'], unit='ms')
         df.set_index('dt', inplace=True)
@@ -116,12 +127,43 @@ class Ccxt_bot():
                 result = stgy.run(df)
                 self.do_notify(result)
            
-    async def run_forever(self, interval: int=10) -> None:
-        schedule.every(interval=interval).seconds.do(self.do_strategies)
+    async def run_forever(self) -> None:
+        # Execute once when just entering
+        self.do_strategies()
+        
+        amount = int(self._timeframe[0:-1])
+        unit = self._timeframe[-1]
+        if 'y' == unit:
+            scale = 365
+            schedule.every(interval=scale*amount).days.at("00:00").do(self.do_strategies)
+        elif 'M' == unit:
+            scale = 30
+            schedule.every(interval=scale*amount).days.at("00:00").do(self.do_strategies)
+        elif 'w' == unit:
+            scale = 7
+            schedule.every(interval=scale*amount).days.at("00:00").do(self.do_strategies)
+        elif 'd' == unit:
+            scale = 1
+            schedule.every(interval=scale*amount).days.at("00:00").do(self.do_strategies)
+        elif 'h' == unit:
+            scale = 1
+            schedule.every(interval=scale*amount).hours.at("00:00").do(self.do_strategies)
+        elif 'm' == unit:
+            scale = 1
+            schedule.every(interval=scale*amount).minutes.at(":00").do(self.do_strategies)
+        elif 's' == unit:
+            scale = 1
+            schedule.every(interval=scale*amount).second.do(self.do_strategies)
         
         while True:
             schedule.run_pending()
             await asyncio.sleep(1)
+        
+    async def close(self)->None:
+        if self._exchange:
+            await self._exchange.close()
+            self._exchange = None
+            
         
     
         
