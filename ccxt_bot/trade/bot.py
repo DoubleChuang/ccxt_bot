@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from core.logger import logger
 import ccxt
 import schedule
 import asyncio
@@ -10,6 +9,7 @@ import pandas_ta as ta
 from ccxt_bot.trade.base import Strategy, StrategyResult, Suggestion
 from ccxt_bot.core import config
 from ccxt_bot.core.utils import notify_line
+from ccxt_bot.core.logger import logger
 
 
 class Ccxt_bot():
