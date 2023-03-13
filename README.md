@@ -24,3 +24,5 @@ Ref:
 - [poetry venv](https://sean22492249.medium.com/%E5%9C%A8-vscode-%E7%9A%84-poetry-%E6%83%B3%E7%94%A8-python-interpreter-ec5f269b2930)
 - [Integrating Python Poetry with Docker](https://stackoverflow.com/questions/53835198/integrating-python-poetry-with-docker)
 - [Document docker poetry best practices](https://github.com/python-poetry/poetry/discussions/1879)
+- [ccxt python examples](https://github.com/ccxt/ccxt/tree/master/examples/py)
+- [schedule doc](https://schedule.readthedocs.io/en/stable/examples.html)
