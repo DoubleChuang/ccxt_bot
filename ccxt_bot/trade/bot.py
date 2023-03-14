@@ -133,27 +133,29 @@ class Ccxt_bot():
         
         amount = int(self._timeframe[0:-1])
         unit = self._timeframe[-1]
+        job = self.do_strategies
         if 'y' == unit:
             scale = 365
-            schedule.every(interval=scale*amount).days.at("00:00").do(self.do_strategies)
+            schedule.every(interval=scale*amount).days.at("00:00").do(job)
         elif 'M' == unit:
             scale = 30
-            schedule.every(interval=scale*amount).days.at("00:00").do(self.do_strategies)
+            schedule.every(interval=scale*amount).days.at("00:00").do(job)
         elif 'w' == unit:
             scale = 7
-            schedule.every(interval=scale*amount).days.at("00:00").do(self.do_strategies)
+            schedule.every(interval=scale*amount).days.at("00:00").do(job)
         elif 'd' == unit:
             scale = 1
-            schedule.every(interval=scale*amount).days.at("00:00").do(self.do_strategies)
+            schedule.every(interval=scale*amount).days.at("00:00").do(job)
         elif 'h' == unit:
             scale = 1
-            schedule.every(interval=scale*amount).hours.at("00:00").do(self.do_strategies)
+            schedule.every().day.at("00:00").do(job)
+            schedule.every(interval=scale*amount).hours.do(job)
         elif 'm' == unit:
             scale = 1
-            schedule.every(interval=scale*amount).minutes.at(":00").do(self.do_strategies)
+            schedule.every(interval=scale*amount).minutes.at(":00").do(job)
         elif 's' == unit:
             scale = 1
-            schedule.every(interval=scale*amount).second.do(self.do_strategies)
+            schedule.every(interval=scale*amount).second.do(job)
         
         while True:
             schedule.run_pending()
