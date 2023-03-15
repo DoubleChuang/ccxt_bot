@@ -147,15 +147,19 @@ class Ccxt_bot():
             scale = 1
             schedule.every(interval=scale*amount).days.at("00:00").do(job)
         elif 'h' == unit:
-            scale = 1
-            schedule.every().day.at("00:00").do(job)
-            schedule.every(interval=scale*amount).hours.do(job)
+            for scale in range(24 // amount):
+                hour = scale*amount    
+                schedule.every(interval=1).days.at(f"{hour:02}:00:00").do(job)
+                scale += 1
         elif 'm' == unit:
             scale = 1
             schedule.every(interval=scale*amount).minutes.at(":00").do(job)
         elif 's' == unit:
             scale = 1
             schedule.every(interval=scale*amount).second.do(job)
+        
+        for s in schedule.get_jobs():
+            logger.info(f"{s.__repr__}")
         
         while True:
             schedule.run_pending()
