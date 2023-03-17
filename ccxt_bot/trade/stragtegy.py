@@ -22,6 +22,12 @@ class MjStategy():
             suggestion=Suggestion.DoNothing,
         )
         
+        prev_date = datas.index[curr_idx-1]
+        curr_date = datas.index[curr_idx]
+        
+        logger.info(f"check KD from {prev_date} to {curr_date}")
+        
+        
         # KD轉多
         if prev_kd < 50 and curr_kd >= 50:
             
