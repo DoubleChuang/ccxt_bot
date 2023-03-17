@@ -14,7 +14,7 @@ class MjStategy():
     def run(self, datas) -> StrategyResult:
         logger.info(f"Run MjStategy ...")
         
-        curr_idx = -2
+        curr_idx = -1
         prev_kd = datas['kdj_k'][curr_idx-1]
         curr_kd = datas['kdj_k'][curr_idx]
         

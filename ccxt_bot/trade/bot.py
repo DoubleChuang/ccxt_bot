@@ -27,6 +27,10 @@ class Ccxt_bot():
         self._exchange: ccxt.binance = exchange_class({
             'apiKey': api_key,
             'secret': secret,
+            # 'options': {
+            #     'defaultType': 'margin', # 槓桿
+            #     'createMarketBuyOrderRequiresPrice': False
+            # }
         })
         self._symbol = symbol
         self._timeframe = timeframe
@@ -126,6 +130,51 @@ class Ccxt_bot():
             else:    
                 result = stgy.run(df)
                 self.do_notify(result)
+                # create order by strategy result
+                # self.create_order_by_strategy_result(result)
+    
+    def create_order_by_strategy_result(self, result: StrategyResult):
+        balance = self._exchange.fetch_balance(
+            params={'type':'margin', 'isIsolated': 'TRUE'}
+        )
+        currency1, currency2 = self._symbol.split("/")
+        logger.info(f'{currency1} Balance: {balance[currency1]}')
+        logger.info(f'{currency2} Balance: {balance[currency2]}')
+        
+        if result.suggestion == Suggestion.DoNothing:
+            return
+        elif result.suggestion == Suggestion.Long:
+            amount = 0.01
+            price = None
+            order_type = 'market' # 市價單使用'market'
+            order_side = 'buy'
+
+            order = self._exchange.create_order(
+                self._symbol, order_type, order_side, amount, price, 
+                params={
+                    'clientOrderId': 'ccxt_bot',
+                    'type':'margin',
+                }
+            )
+            logger.info(f"[Buy]: {order}")
+        elif result.suggestion == Suggestion.Short:
+            amount = 0.01
+            price = None
+            order_type = 'market' # 市價單使用'market'
+            order_side = 'sell'
+
+            order = self._exchange.create_order(
+                self._symbol, order_type, order_side, amount, price, 
+                params={
+                    'clientOrderId': 'ccxt_bot',
+                    'type':'margin',
+                }
+            )
+            logger.info(f"[Sell]: {order}")
+        else:
+            logger.error(f'Unknown Suggestion: {result.suggestion}')
+            return
+            
            
     async def run_forever(self) -> None:
         # Execute once when just entering
@@ -170,8 +219,3 @@ class Ccxt_bot():
             await self._exchange.close()
             self._exchange = None
             
-        
-    
-        
-        
-        
