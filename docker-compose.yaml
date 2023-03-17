@@ -1,0 +1,12 @@
+version: "3"
+services:
+  ccxt_bot:
+    image: ghcr.io/doublechuang/ccxt_bot:latest
+    # command: tail -f /dev/null
+    restart: unless-stopped
+    # volumes:
+    #   - $PWD:/final_screen
+    #   - $PWD/config.json:/config.json
+    # shm_size: 2gb
+    env_file:
+      - .env
