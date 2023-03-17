@@ -198,7 +198,7 @@ class Ccxt_bot():
         elif 'h' == unit:
             for scale in range(24 // amount):
                 hour = scale*amount    
-                schedule.every(interval=1).days.at(f"{hour:02}:00:00").do(job)
+                schedule.every(interval=1).days.at(f"{hour:02}:00:01").do(job)
                 scale += 1
         elif 'm' == unit:
             scale = 1
