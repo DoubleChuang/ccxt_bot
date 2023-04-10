@@ -43,7 +43,7 @@ RUN apt-get update \
 RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
   tar -xvzf ta-lib-0.4.0-src.tar.gz && \
   cd ta-lib/ && \
-  ./configure --prefix=/usr --build=x86 --host=$(if [ $(uname -m|grep x86) ]; then echo "x86"; else echo "arm"; fi) && \
+  ./configure --prefix=/usr --host=$(if [ $(uname -m|grep x86) ]; then echo "x86"; else echo "arm"; fi) && \
   make && \
   make install
 
