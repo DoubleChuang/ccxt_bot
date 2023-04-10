@@ -91,7 +91,7 @@ jobs:
         #   JFROG_PWD=${{ secrets.JFROG_CREDS_PSW }}
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
           # platforms: linux/amd64
           push: true
           tags: |
