@@ -16,15 +16,15 @@ jobs:
       
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           submodules: true
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v2
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2
 
       - name: Cache Docker layers
         uses: actions/cache@v2
@@ -85,15 +85,13 @@ jobs:
 
           
       - name: Build and push
-        uses: docker/build-push-action@v2
-        # build-args: |
-        #   JFROG_USERNAME=${{ secrets.JFROG_CREDS_USR }}
-        #   JFROG_PWD=${{ secrets.JFROG_CREDS_PSW }}
+        uses: docker/build-push-action@v4
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           # platforms: linux/amd64
           push: true
+          no-cache: true
           tags: |
             ghcr.io/${{ env.OWNER }}/${{ env.REGISTRY_NAME }}
             ${{ env.DOCKERHUB_USERNAME }}/${{ env.REGISTRY_NAME }}
