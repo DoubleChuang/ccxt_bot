@@ -7,6 +7,13 @@ from ccxt_bot.trade.base import StrategyResult, Suggestion
 
 
 class MjStategy():
+    """ MjStategy
+    
+    當KD 上穿50 則 發送 做多
+    當KD 下穿50 則 發送 做空
+    以上皆非 則 發送 不做事
+    
+    """
     def __init__(self):
         self._long_date = None
         self._short_date = None

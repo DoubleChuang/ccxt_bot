@@ -2,11 +2,6 @@
 
 ## How to use
 
-Build docker image from source code
-```
-docker build -t ccxt_bot .
-```
-
 Create a `.env` file, and modify the `LINE_TOKEN` `BINANCE_API_KEY` `BINANCE_SECRET` in the file
 ```
 LINE_TOKEN=YOUR_LINE_TOKEN
@@ -14,10 +9,27 @@ BINANCE_API_KEY=YOUR_BINANCE_API_KEY
 BINANCE_SECRET=YOUR_BINANCE_SECRET
 ```
 
+Run from source code
+```
+poetry install # only needs to be executed once
+
+
+poetry run python3 ccxt_bot/__main__.py
+```
+
+Build docker image from source code
+```
+docker build -t ccxt_bot .
+```
+
+
+
 Run image as a container 
 ```
-docker run --rm -it --env-file .env ccxt_bot
+# Run by self-built Docker image
 docker run -d --name ccxt_bot --restart unless-stopped --env-file .env ccxt_bot
+# Run by Docker Images built with GitHub Actions
+docker run -d --name ccxt_bot --restart unless-stopped --env-file .env ghcr.io/doublechuang/ccxt_bot:1a7815e
 ```
 
 Ref:

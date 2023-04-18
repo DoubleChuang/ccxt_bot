@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from typing import List, Union
 import ccxt
 import schedule
 import asyncio
@@ -22,7 +23,21 @@ class Ccxt_bot():
         timeframe: str,
         line_token: str,
         backtest: bool = False,
+        sandbox: bool = False,
     ):
+        """Ccxt_bot
+        這是一個執行 已註冊策略 進行自動操作 與 通知 的加密貨幣機器人 
+        
+        Args:
+            api_key (str): 向交易所申請的api key
+            secret (str): 向交易所申請的secret
+            exchange_id (str): 交易所的id, ex. binance
+            symbol (str): 要監測的交易對, ex. ETH/USDT
+            timeframe (str): 要監測的週期的K線圖, ex. 4H
+            line_token (str): 發送訊息到line的line token
+            backtest (bool, optional): 回測功能. Defaults to False.
+            sandbox (bool, optional): 下單功能，如果開啟 則不會真實下單 僅顯示log. Defaults to False.
+        """
         exchange_class = getattr(ccxt, exchange_id)
         self._exchange: ccxt.binance = exchange_class({
             'apiKey': api_key,
@@ -37,13 +52,32 @@ class Ccxt_bot():
         self._line_token = line_token
         self._strategies = []
         self._backtest = backtest
+        self._sandbox = sandbox
         
-    def register_strategy(self, strategy: Strategy) -> int:
+    def register_strategy(self, strategy: Strategy) -> List[Strategy]:
+        """register_strategy
+
+        Args:
+            strategy (Strategy): 註冊想要執行的策略
+
+        Returns:
+            List[Strategy]: 當前註冊的策略
+        """
         self._strategies.append(strategy)
         
-        return len(self._strategies)
+        return self._strategies
 
-    def indicator(self, data: pd.DataFrame):
+    def generate_indicator(self, data: pd.DataFrame):
+        """indicator
+        
+        使用輸入的k線資料 計算需要的指標 並 回傳
+
+        Args:
+            data (pd.DataFrame): k線資料
+
+        Returns:
+            pd.DataFrame: k線資料並包含計算後的indicator
+        """
         data['rsi']  = data.ta.rsi(lenght=10)
         data['ema'] = ta.ema(data['close'], length=21)
         # df.ta.kdj 是 pandas_ta 庫中計算 KDJ 指標的函數。該函數會在 DataFrame 對象中添加三列新的數據列，分別是 K 值、D 值和 J 值。函數的返回值是修改後的 DataFrame 對象。
@@ -85,6 +119,18 @@ class Ccxt_bot():
         return data
 
     def fetch_datas(self, limit: int=200) -> pd.DataFrame:
+        """fetch_datas
+        獲取股票k線資料
+
+        Args:
+            limit (int, optional): 最後輸出的資料. Defaults to 200.
+
+        Raises:
+            e: _description_
+
+        Returns:
+            pd.DataFrame: 輸出股票資料
+        """
         while True:
             try:
                 kbars = self._exchange.fetch_ohlcv(
@@ -104,11 +150,16 @@ class Ccxt_bot():
         df = pd.DataFrame(kbars[:], columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         df['dt'] = pd.to_datetime(df['timestamp'], unit='ms')
         df.set_index('dt', inplace=True)
-        df = self.indicator(df).tail(limit)
+        df = self.generate_indicator(df).tail(limit)
         
         return df
     
-    def do_notify(self, result: StrategyResult):
+    def notify_line(self, result: StrategyResult) -> None:
+        """發送策略判斷的結果到Line
+
+        Args:
+            result (StrategyResult): _description_
+        """
         if result.suggestion != Suggestion.DoNothing:
             
             msg = f'''
@@ -120,35 +171,94 @@ class Ccxt_bot():
             '''
             notify_line(token=self._line_token, msg=msg)
         
-    def do_strategies(self):
+    def do_strategies(self) -> None:
+        """do_strategies        
+        執行已註冊的策略
+        """
         df = self.fetch_datas()
+        # 有註冊的策略將會把資料輸入執行 並執行發送通知與建立訂單
         for stgy in self._strategies:
             if self._backtest:
                 results = stgy.backtest(df)
                 for result in results:
-                    self.do_notify(result)
+                    self.notify_line(result)
             else:    
                 result = stgy.run(df)
-                self.do_notify(result)
+                self.notify_line(result)
                 # create order by strategy result
-                # self.create_order_by_strategy_result(result)
+                self.create_order(result)
     
-    def create_order_by_strategy_result(self, result: StrategyResult):
+    def fetch_balance(self) -> tuple:
         balance = self._exchange.fetch_balance(
             params={'type':'margin', 'isIsolated': 'TRUE'}
         )
+
         currency1, currency2 = self._symbol.split("/")
-        logger.info(f'{currency1} Balance: {balance[currency1]}')
-        logger.info(f'{currency2} Balance: {balance[currency2]}')
+        
+        return (currency1, currency2), (balance[currency1], balance[currency2])
+        
+    def fetch_remain_tradable_amount(self, trade_side: Union[str, None] = None):
+        """獲取目前可以交易的金額
+
+        
+        Args:
+            trade_side (str): 交易的方向. buy or sell
+        """
+        _, currency_balance = self.fetch_balance()
+        ticker = self._exchange.fetch_ticker(self._symbol)
+        logger.info(f"ticker :{ticker['close']}")
+        
+        if trade_side is None:
+            return currency_balance[1]["total"] - currency_balance[0]["debt"]*ticker["close"]
+        elif trade_side == "buy":
+            # return currency_balance[1]["free"]*3 - currency_balance[0]["debt"]*ticker["close"]
+            return currency_balance[1]["total"] - currency_balance[0]["debt"]*ticker["close"]
+        elif trade_side == "sell":
+            return currency_balance[1]["total"]/ticker["close"] - currency_balance[0]["debt"]
+            # return (currency_balance[1]["free"] - currency_balance[0]["total"]*ticker["close"])*3
+        
+    
+    def create_order(self, result: StrategyResult):
+        """create_order
+
+        透過輸入後的執行策略後的結果 自動執行訂單操作
+        
+        Args:
+            result (StrategyResult): 執行策略後的結果
+        """
+        # 獲取交易對目前餘額
+        currency_name, currency_balance = self.fetch_balance()
+        
+        for name, balance in zip(currency_name, currency_balance):
+            logger.info(f"currency {name}: {balance}")
+        
+        
+        logger.info(f"remain bal: {self.fetch_remain_tradable_amount()}")
+        logger.info(f"buy  side: {self.fetch_remain_tradable_amount('buy')}")
+        logger.info(f"sell side: {self.fetch_remain_tradable_amount('sell')}")
         
         if result.suggestion == Suggestion.DoNothing:
+            logger.debug(f'suggest do nothing 💎')
             return
         elif result.suggestion == Suggestion.Long:
-            amount = 0.01
+            amount = self.fetch_remain_tradable_amount()*0.3
             price = None
             order_type = 'market' # 市價單使用'market'
             order_side = 'buy'
-
+            
+            logger.info(
+                f"""
+                [Buy] (sandbox mode {"🟢"if self._sandbox else "🔴"}):
+                    order_type: {order_type}
+                    order_side: {order_side}
+                    amount:     {amount}
+                    price:      {price}
+                """
+            )
+            
+            if self._sandbox:
+                return
+            
             order = self._exchange.create_order(
                 self._symbol, order_type, order_side, amount, price, 
                 params={
@@ -156,13 +266,27 @@ class Ccxt_bot():
                     'type':'margin',
                 }
             )
+            
             logger.info(f"[Buy]: {order}")
         elif result.suggestion == Suggestion.Short:
-            amount = 0.01
+            amount = self.fetch_remain_tradable_amount()*0.3
             price = None
             order_type = 'market' # 市價單使用'market'
             order_side = 'sell'
 
+            logger.info(
+                f"""
+                [Sell] (sandbox mode{"🟢"if self._sandbox else "🔴"}):
+                    order_type: {order_type}
+                    order_side: {order_side}
+                    amount:     {amount}
+                    price:      {price}
+                """
+            )
+            
+            if self._sandbox:
+                return
+                
             order = self._exchange.create_order(
                 self._symbol, order_type, order_side, amount, price, 
                 params={
@@ -170,6 +294,7 @@ class Ccxt_bot():
                     'type':'margin',
                 }
             )
+            
             logger.info(f"[Sell]: {order}")
         else:
             logger.error(f'Unknown Suggestion: {result.suggestion}')
@@ -177,6 +302,11 @@ class Ccxt_bot():
             
            
     async def run_forever(self) -> None:
+        """ run_forever
+        
+        依照每經過timeframe間隔 就獲取最新資料並執行註冊的策略
+        第一次進入會無條件先執行一次
+        """
         # Execute once when just entering
         self.do_strategies()
         
