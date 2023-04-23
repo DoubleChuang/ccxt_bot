@@ -2,16 +2,33 @@
 
 from typing import List, Union
 import ccxt
-import schedule
 import asyncio
 import pandas as pd
 import pandas_ta as ta
+import numpy as np
+from schedule import Scheduler
 
 from ccxt_bot.trade.base import Strategy, StrategyResult, Suggestion
 from ccxt_bot.core import config
 from ccxt_bot.core.utils import notify_line
 from ccxt_bot.core.logger import logger
 
+
+# help functions
+def calc_smma(src: pd.DataFrame, length: int):
+    smma = ta.sma(src, length)
+
+    for i in range(length, len(src)):
+        smma[i] = (smma[i-1] * (length - 1) + src[i])/length
+        
+    return smma
+
+def calc_zlema(src, length):
+    ema1 = ta.ema(src, length)
+    ema2 = ta.ema(ema1, length)
+    d = ema1 - ema2
+
+    return ema1 + d
 
 class Ccxt_bot():
     def __init__(
@@ -116,6 +133,22 @@ class Ccxt_bot():
         data['kdj_j_diff'] = data['kdj_j'] - 50 - data['macd']
         data['kdj_j_diff_prev'] = data['kdj_j_diff'].shift(1)
         
+        lengthMA = 34
+        lengthSignal = 9
+        src = data[['high', 'low', 'close']].mean(axis=1)
+        data['hi'] = calc_smma(data['high'], lengthMA)
+        data['lo'] = calc_smma(data['low'], lengthMA)
+        data['mi'] = calc_zlema(src, lengthMA)
+        
+        data['md'] = np.where(data['mi'] > data['hi'], data['mi'] - data['hi'], np.where(data['mi'] < data['lo'], data['mi'] - data['lo'], 0))
+        data['sb'] = ta.sma(data['md'], lengthSignal)
+        data['sh'] = data['md'] - data['sb']
+        data['mdc'] = np.where(src > data['mi'], np.where(src > data['hi'], 'lime', 'green'), np.where(src < data['lo'], 'red', 'orange'))
+        data['atr'] = ta.atr(data['high'], data['low'], data['close'], length=14, mamode="rma")
+        
+        # logger.info(f"data['atr']:{data['atr']}")
+        # logger.info(f"data['close']:{data['close']}")
+        
         return data
 
     def fetch_datas(self, limit: int=200) -> pd.DataFrame:
@@ -165,7 +198,8 @@ class Ccxt_bot():
             msg = f'''
             👾 {config.APP_NAME} 👾
             
-            symbol 👉 {self._symbol}
+            symbol     👉 {self._symbol}
+            time frame 👉 {self._timeframe}
             
             {result.msg}
             '''
@@ -183,10 +217,11 @@ class Ccxt_bot():
                 for result in results:
                     self.notify_line(result)
             else:    
-                result = stgy.run(df)
-                self.notify_line(result)
-                # create order by strategy result
-                self.create_order(result)
+                results = stgy.run(df)
+                for result in results:
+                    self.notify_line(result)
+                    # create order by strategy result
+                    self.create_order(result)
     
     def fetch_balance(self) -> tuple:
         balance = self._exchange.fetch_balance(
@@ -301,7 +336,7 @@ class Ccxt_bot():
             return
             
            
-    async def run_forever(self) -> None:
+    def join_schedule(self, scheduler: Scheduler) -> None:
         """ run_forever
         
         依照每經過timeframe間隔 就獲取最新資料並執行註冊的策略
@@ -315,34 +350,32 @@ class Ccxt_bot():
         job = self.do_strategies
         if 'y' == unit:
             scale = 365
-            schedule.every(interval=scale*amount).days.at("00:00").do(job)
+            scheduler.every(interval=scale*amount).days.at("00:00").do(job)
         elif 'M' == unit:
             scale = 30
-            schedule.every(interval=scale*amount).days.at("00:00").do(job)
+            scheduler.every(interval=scale*amount).days.at("00:00").do(job)
         elif 'w' == unit:
             scale = 7
-            schedule.every(interval=scale*amount).days.at("00:00").do(job)
+            scheduler.every(interval=scale*amount).days.at("00:00").do(job)
         elif 'd' == unit:
             scale = 1
-            schedule.every(interval=scale*amount).days.at("00:00").do(job)
+            scheduler.every(interval=scale*amount).days.at("00:00").do(job)
         elif 'h' == unit:
             for scale in range(24 // amount):
                 hour = scale*amount    
-                schedule.every(interval=1).days.at(f"{hour:02}:00:01").do(job)
+                scheduler.every(interval=1).days.at(f"{hour:02}:00:01").do(job)
                 scale += 1
         elif 'm' == unit:
             scale = 1
-            schedule.every(interval=scale*amount).minutes.at(":00").do(job)
+            scheduler.every(interval=scale*amount).minutes.at(":00").do(job)
         elif 's' == unit:
             scale = 1
-            schedule.every(interval=scale*amount).second.do(job)
+            scheduler.every(interval=scale*amount).second.do(job)
         
-        for s in schedule.get_jobs():
+        for s in scheduler.get_jobs():
             logger.info(f"{s.__repr__}")
         
-        while True:
-            schedule.run_pending()
-            await asyncio.sleep(1)
+        
         
     async def close(self)->None:
         if self._exchange:

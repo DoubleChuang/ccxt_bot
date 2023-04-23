@@ -5,14 +5,21 @@ from enum import Enum, auto
 from pydantic import BaseModel
 
 class Suggestion(Enum):
-    Long = auto()
-    Short = auto()
-    DoNothing = auto()
+    Long = auto() # long
+    Long_SL = auto() # long stop loss
+    Long_TP = auto() # long take profit
+    
+    Short = auto() # short
+    Short_SL = auto() # short stop loss
+    Short_TP = auto() # short take profit
+    
+    DoNothing = auto() # do nothing
 
 class StrategyResult(BaseModel):
     suggestion: Optional[Suggestion] = Suggestion.DoNothing
     msg: Optional[str] = ""
-    stop_price: Optional[int] = None
+    stop_price: Optional[float] = None
+    limit_price: Optional[float] = None
 
 class Strategy(Protocol):
     def run(self, datas) -> StrategyResult:
