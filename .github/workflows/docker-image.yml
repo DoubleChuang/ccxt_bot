@@ -104,3 +104,11 @@ jobs:
 #         run: |
 #           rm -rf /tmp/.buildx-cache
 #           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+      - name: Line Notify
+        uses: appleboy/line-notify-action@v2.1.0
+        with:
+          token: ${{ secrets.LINE_TOKEN }}
+          message: |
+            Commit message: ${{ github.event.head_commit.message }}
+            Commit URL: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
+            Status: ${{ job.status }}
