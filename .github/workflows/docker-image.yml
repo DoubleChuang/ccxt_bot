@@ -104,8 +104,8 @@ jobs:
 #         run: |
 #           rm -rf /tmp/.buildx-cache
 #           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-      - name: Line Notify
-        uses: appleboy/line-notify-action@v2.1.0
+      - name: LINE Notify Message
+        uses: louis70109/line-notify-action@v0.1.0
         with:
           token: ${{ secrets.LINE_TOKEN }}
           message: |
