@@ -16,6 +16,7 @@ class Suggestion(Enum):
     DoNothing = auto() # do nothing
 
 class StrategyResult(BaseModel):
+    name: str
     suggestion: Optional[Suggestion] = Suggestion.DoNothing
     msg: Optional[str] = ""
     stop_price: Optional[float] = None

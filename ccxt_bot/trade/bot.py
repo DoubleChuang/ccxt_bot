@@ -198,6 +198,7 @@ class Ccxt_bot():
             msg = f'''
             👾 {config.APP_NAME} 👾
             
+            strategy   👉 {result.name} 
             symbol     👉 {self._symbol}
             time frame 👉 {self._timeframe}
             

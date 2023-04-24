@@ -27,6 +27,7 @@ class KD50Strategy():
         
         results = [] 
         # StrategyResult(
+        #     name=self.__class__.__name__,
         #     suggestion=Suggestion.DoNothing,
         # )
         
@@ -50,6 +51,7 @@ class KD50Strategy():
             self._long_date = date
             
             r = StrategyResult(
+                name=self.__class__.__name__,
                 suggestion=Suggestion.Long,
                 msg = msg,
                 stop_price=stop_price,
@@ -69,6 +71,7 @@ class KD50Strategy():
             self._short_date = date
 
             r = StrategyResult(
+                name=self.__class__.__name__,
                 suggestion=Suggestion.Short,
                 msg = msg,
                 stop_price=stop_price,
@@ -88,6 +91,7 @@ class KD50Strategy():
             curr_kd = datas['kdj_k'][curr_idx]
             
             result = StrategyResult(
+                name=self.__class__.__name__,
                 suggestion=Suggestion.DoNothing,
             )
             
@@ -105,6 +109,7 @@ class KD50Strategy():
                 
                 results.append(
                     StrategyResult(
+                        name=self.__class__.__name__,
                         suggestion=Suggestion.Long,
                         msg = msg,
                         stop_price=stop_price,
@@ -125,6 +130,7 @@ class KD50Strategy():
 
                 results.append(
                     StrategyResult(
+                        name=self.__class__.__name__,
                         suggestion=Suggestion.Short,
                         msg = msg,
                         stop_price=stop_price,
@@ -144,25 +150,24 @@ class ImpulseMACDStrategy():
         self._long_stop_price = None
         self._short_stop_price = None
     
-    def run(self, datas) -> List[StrategyResult]:
-        logger.info(f"Run {self.__class__.__name__} ...")
-        
+    def run(self, datas, curr_idx = -2) -> List[StrategyResult]:
         results = []
-        # StrategyResult(
-        #     suggestion=Suggestion.DoNothing,
-        # )
-        
-        curr_idx = -2
+        # curr_idx = -2
         close = datas['close'][curr_idx]
-        atr = datas['atr'][-1]
-        open = datas['open'][-1]
+        atr = datas['atr'][curr_idx+1]
+        open = datas['open'][curr_idx+1]
         date = datas.index[curr_idx]
         
-        long_cond = datas['mdc'][curr_idx-3] == 'red' and datas['mdc'][curr_idx-2] == 'red' and \
-                    datas['mdc'][curr_idx-1] == 'grean' and datas['mdc'][curr_idx] == 'green'
+        logger.info(f"Run {self.__class__.__name__} at {date} {self._position_size}...")
+        
+        long_cond = self._position_size <=0 and datas['mdc'][curr_idx-3] == 'red' and datas['mdc'][curr_idx-2] == 'red' and \
+                    datas['mdc'][curr_idx-1] == 'green' and datas['mdc'][curr_idx] == 'green'
+        
                     
-        short_cond = datas['mdc'][curr_idx-3] == 'lime' and datas['mdc'][curr_idx-2] == 'lime' and \
+        short_cond = self._position_size >=0 and datas['mdc'][curr_idx-3] == 'lime' and datas['mdc'][curr_idx-2] == 'lime' and \
                     datas['mdc'][curr_idx-1] == 'orange' and datas['mdc'][curr_idx] == 'orange'
+        
+        # logger.info(f"{'Long' if long_cond else 'Short' if short_cond else ''} {datas['mdc'][curr_idx-3]} {datas['mdc'][curr_idx-2]} {datas['mdc'][curr_idx-1]} {datas['mdc'][curr_idx]}")
         
         long_exit_cond = short_cond and self._position_size > 0
         short_exit_cond = long_cond and self._position_size < 0
@@ -170,47 +175,60 @@ class ImpulseMACDStrategy():
         long_stop_cond = self._position_size > 0 and self._long_stop_price is not None and close <= self._long_stop_price
         short_stop_cond = self._position_size < 0 and self._short_stop_price is not None and close >= self._short_stop_price
         
+        
         if long_exit_cond or long_stop_cond:
-            msg = f"{'多單止損' if long_stop_cond else '多單停利'} {close}, at {date}"
+            msg = f"{f'多單止損 止損價:{self._long_stop_price:.2f}' if long_stop_cond else '多單停利'}, 止損當前價:{close}, at {date}"
             
             self._long_stop_price = None
             r = StrategyResult(
+                name=self.__class__.__name__,
                 suggestion=Suggestion.Long_SL if long_stop_cond else Suggestion.Long_TP,
                 msg = msg,
             )
             results.append(r)
             
+            self._position_size = 0
+            
         if short_exit_cond or short_stop_cond:
-            msg = f"{'空單止損' if short_stop_cond else '空單停利'} {close}, at {date}"
+            msg = f"{f'空單止損 止損價:{self._short_stop_price:.2f}' if short_stop_cond else '空單停利'} 止損當前價:{close}, at {date}"
             
             self._short_stop_price = None
             r = StrategyResult(
+                name=self.__class__.__name__,
                 suggestion=Suggestion.Short_SL if short_stop_cond else Suggestion.Short_TP,
                 msg = msg,
             )
             results.append(r)
+            
+            self._position_size = 0
     
         if short_cond:
             self._short_stop_price = open + 1.5 * atr
-            msg = f"做空 {close}, 停損 {self._short_stop_price} at {date}"
+            msg = f"做空 {close}, 停損 {self._short_stop_price:.2f} at {date}"
             
             r = StrategyResult(
+                name=self.__class__.__name__,
                 suggestion=Suggestion.Short,
                 msg = msg,
                 stop_price=self._short_stop_price,
             )
             results.append(r)
+            
+            self._position_size = -1
         
         if long_cond:
             self._long_stop_price = open - 1.5 * atr
-            msg = f"做多 {close}, 停損 {self._long_stop_price} at {date}"
+            msg = f"做多 {close}, 停損 {self._long_stop_price:.2f} at {date}"
             
             r = StrategyResult(
+                name=self.__class__.__name__,
                 suggestion=Suggestion.Long,
                 msg = msg,
                 stop_price=self._long_stop_price,
             )
             results.append(r)
+            
+            self._position_size = 1
         
 
         return results
@@ -219,12 +237,10 @@ class ImpulseMACDStrategy():
         logger.info(f"Run {self.__class__.__name__} backtest ...")
         results = []
         
-        # for i in range(1, len(datas)):
+        for i in range(3, len(datas)-1):
             
-        #     result = StrategyResult(
-        #         suggestion=Suggestion.DoNothing,
-        #     )
+            result = self.run(datas, curr_idx=i)
             
-        #     results.append(result)
+            results.extend(result)
         
         return results
