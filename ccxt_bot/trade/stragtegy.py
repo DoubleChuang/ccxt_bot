@@ -158,7 +158,7 @@ class ImpulseMACDStrategy():
         open = datas['open'][curr_idx+1]
         date = datas.index[curr_idx]
         
-        logger.info(f"Run {self.__class__.__name__} at {date} {self._position_size}...")
+        # logger.info(f"Run {self.__class__.__name__} at {date} {self._position_size}...")
         
         long_cond = self._position_size <=0 and datas['mdc'][curr_idx-3] == 'red' and datas['mdc'][curr_idx-2] == 'red' and \
                     datas['mdc'][curr_idx-1] == 'green' and datas['mdc'][curr_idx] == 'green'

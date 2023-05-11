@@ -12,6 +12,7 @@ from ccxt_bot.trade.base import Strategy, StrategyResult, Suggestion
 from ccxt_bot.core import config
 from ccxt_bot.core.utils import notify_line
 from ccxt_bot.core.logger import logger
+from ccxt_bot.trade.trader import Trader
 
 
 # help functions
@@ -70,6 +71,7 @@ class Ccxt_bot():
         self._strategies = []
         self._backtest = backtest
         self._sandbox = sandbox
+        self._trader = Trader(exchange=self._exchange, symbol=symbol, sandbox=sandbox)
         
     def register_strategy(self, strategy: Strategy) -> List[Strategy]:
         """register_strategy
@@ -206,7 +208,7 @@ class Ccxt_bot():
             '''
             notify_line(token=self._line_token, msg=msg)
         
-    def do_strategies(self) -> None:
+    def do_strategies(self, skip_order: bool = False) -> None:
         """do_strategies        
         執行已註冊的策略
         """
@@ -217,134 +219,24 @@ class Ccxt_bot():
                 results = stgy.backtest(df)
                 for result in results:
                     self.notify_line(result)
+                    if not skip_order: self._trader.create_order(result, percent_of_equity=30)
             else:    
                 results = stgy.run(df)
                 for result in results:
                     self.notify_line(result)
                     # create order by strategy result
-                    self.create_order(result)
+                    if not skip_order: self._trader.create_order(result, percent_of_equity=30)
     
-    def fetch_balance(self) -> tuple:
-        balance = self._exchange.fetch_balance(
-            params={'type':'margin', 'isIsolated': 'TRUE'}
-        )
-
-        currency1, currency2 = self._symbol.split("/")
-        
-        return (currency1, currency2), (balance[currency1], balance[currency2])
-        
-    def fetch_remain_tradable_amount(self, trade_side: Union[str, None] = None):
-        """獲取目前可以交易的金額
-
-        
-        Args:
-            trade_side (str): 交易的方向. buy or sell
-        """
-        _, currency_balance = self.fetch_balance()
-        ticker = self._exchange.fetch_ticker(self._symbol)
-        logger.info(f"ticker :{ticker['close']}")
-        
-        if trade_side is None:
-            return currency_balance[1]["total"] - currency_balance[0]["debt"]*ticker["close"]
-        elif trade_side == "buy":
-            # return currency_balance[1]["free"]*3 - currency_balance[0]["debt"]*ticker["close"]
-            return currency_balance[1]["total"] - currency_balance[0]["debt"]*ticker["close"]
-        elif trade_side == "sell":
-            return currency_balance[1]["total"]/ticker["close"] - currency_balance[0]["debt"]
-            # return (currency_balance[1]["free"] - currency_balance[0]["total"]*ticker["close"])*3
-        
-    
-    def create_order(self, result: StrategyResult):
-        """create_order
-
-        透過輸入後的執行策略後的結果 自動執行訂單操作
-        
-        Args:
-            result (StrategyResult): 執行策略後的結果
-        """
-        # 獲取交易對目前餘額
-        currency_name, currency_balance = self.fetch_balance()
-        
-        for name, balance in zip(currency_name, currency_balance):
-            logger.info(f"currency {name}: {balance}")
-        
-        
-        logger.info(f"remain bal: {self.fetch_remain_tradable_amount()}")
-        logger.info(f"buy  side: {self.fetch_remain_tradable_amount('buy')}")
-        logger.info(f"sell side: {self.fetch_remain_tradable_amount('sell')}")
-        
-        if result.suggestion == Suggestion.DoNothing:
-            logger.debug(f'suggest do nothing 💎')
-            return
-        elif result.suggestion == Suggestion.Long:
-            amount = self.fetch_remain_tradable_amount()*0.3
-            price = None
-            order_type = 'market' # 市價單使用'market'
-            order_side = 'buy'
-            
-            logger.info(
-                f"""
-                [Buy] (sandbox mode {"🟢"if self._sandbox else "🔴"}):
-                    order_type: {order_type}
-                    order_side: {order_side}
-                    amount:     {amount}
-                    price:      {price}
-                """
-            )
-            
-            if self._sandbox:
-                return
-            
-            order = self._exchange.create_order(
-                self._symbol, order_type, order_side, amount, price, 
-                params={
-                    'clientOrderId': 'ccxt_bot',
-                    'type':'margin',
-                }
-            )
-            
-            logger.info(f"[Buy]: {order}")
-        elif result.suggestion == Suggestion.Short:
-            amount = self.fetch_remain_tradable_amount()*0.3
-            price = None
-            order_type = 'market' # 市價單使用'market'
-            order_side = 'sell'
-
-            logger.info(
-                f"""
-                [Sell] (sandbox mode{"🟢"if self._sandbox else "🔴"}):
-                    order_type: {order_type}
-                    order_side: {order_side}
-                    amount:     {amount}
-                    price:      {price}
-                """
-            )
-            
-            if self._sandbox:
-                return
                 
-            order = self._exchange.create_order(
-                self._symbol, order_type, order_side, amount, price, 
-                params={
-                    'clientOrderId': 'ccxt_bot',
-                    'type':'margin',
-                }
-            )
-            
-            logger.info(f"[Sell]: {order}")
-        else:
-            logger.error(f'Unknown Suggestion: {result.suggestion}')
-            return
-            
            
     def join_schedule(self, scheduler: Scheduler) -> None:
         """ run_forever
         
         依照每經過timeframe間隔 就獲取最新資料並執行註冊的策略
-        第一次進入會無條件先執行一次
+        第一次進入會無條件先執行一次, 但不會交易訂單
         """
-        # Execute once when just entering
-        self.do_strategies()
+        # Execute once when just entering, but will not execute the order
+        self.do_strategies(skip_order=False)
         
         amount = int(self._timeframe[0:-1])
         unit = self._timeframe[-1]

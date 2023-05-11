@@ -20,7 +20,7 @@ class StrategyResult(BaseModel):
     suggestion: Optional[Suggestion] = Suggestion.DoNothing
     msg: Optional[str] = ""
     stop_price: Optional[float] = None
-    limit_price: Optional[float] = None
+    tp_price: Optional[float] = None
 
 class Strategy(Protocol):
     def run(self, datas) -> StrategyResult:
